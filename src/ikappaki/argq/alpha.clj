@@ -4,34 +4,32 @@
 
 (def ^:dynamic *tags*
   {:clj/help {:help "Display information about the registered NS/TAGs."}
-   :clj/%  {:help (str "Unescape %-codes in ELEMENT and use that as the argument value."
+   :clj/esc  {:help (str "Unescape *-codes in ELEMENT and use that as the argument value."
                        " Use the `:v` OPT to display useful information about the conversion.")}
-   :clj/%i {:help (str "Prompt user with ELEMENT to enter a value and use that as the argument value."
-                       " Print out the %-escaped value,"
+   :clj/prompt {:help (str "Prompt user with ELEMENT to enter a value and use that as the argument value."
+                       " Print out the *-escaped value,"
                        " so that it can be retrieved by the user as a command line argument."
                        " The escape codes are:"
-                       " %% or %P for % (Per-cent), %A for & (Ambersand), %B for ` (Backtick), %C for ^ (Caret),"
-                       " %D for $ (Dollar), %G for > (Greater-than), %I for | (pIpe), %L for < (Less-than),"
-                       " %Q for ' (single-Quote), %S for \\ (backSlash),"
-                       " %0 for \" (0-times backslashed double quote), %1 for \\\" (1-times bdq)"
-                       " and %2 for \\\\\" (2-times bdq).")}
-   ;; :clj/%% {:help "Same as `clj/%`, but also print out the %-unescaped value to the user."}
+                       " ** or *a for * (a-sterisk), *A for & (Ambersand), *B for ` (Backtick), *C for ^ (Caret),"
+                       " *D for $ (Dollar), *G for > (Greater-than), *I for | (pIpe), *L for < (Less-than),"
+                       " *P for % (Per-cent), *q for ' (single-quote), *Q for \" (double-Quote),"
+                       " *S for \\ (backSlash), and *1 for \\\" (1-times backslashed double quote).")}
+   ;; :clj/** {:help "Same as `clj/*`, but also print out the *-unescaped value to the user."}
    :clj/publish {:help "Print out the arguments in argq form suitable for use across any platform."}})
 
 (defmulti transform (fn [tag _ & _] tag))
 
 (defn str-unescape
   [string]
-  (if-not (str/index-of string "%")
+  (if-not (str/index-of string "*")
     string
-    (let [[unescaped & escaped-parts] (str/split (str/replace string "%%" "%P") #"%")]
+    (let [[unescaped & escaped-parts] (str/split (str/replace string "**" (str/re-quote-replacement "*a")) #"\*")]
       (->> escaped-parts
            (map #(let [f (first %)
                        r (subs % 1)]
                    (case f
-                     \0 (str \" r)
                      \1 (str "\\\"" r)
-                     \2 (str "\\\\\"" r)
+                     \a (str \* r)
                      \A (str \& r)
                      \B (str \` r)
                      \C (str \^ r)
@@ -40,32 +38,33 @@
                      \I (str \| r)
                      \L (str \< r)
                      \P (str \% r)
-                     \Q (str \' r)
+                     \q (str \' r)
+                     \Q (str \" r)
                      \S (str \\ r)
                      nil nil
-                     (str "%" r))))
+                     (str "*" %))))
            (into [unescaped])
            str/join))))
 
 (def escape-codes
-  (array-map \% "%%"
-             "\\\\\"" "%2" "\\\"" "%1" \" "%0"
-             \& "%A" \` "%B" \^ "%C" \$ "%D" \> "%G" \| "%I" \< "%L" \' "%Q" \\ "%S"))
+  (array-map \* "**"
+             "\\\"" "*1"
+             \& "*A" \` "*B" \^ "*C" \$ "*D" \> "*G" \| "*I" \< "*L" \% "*P" \' "*q" \" "*Q" \\ "*S"))
 
 (defn str-escape
   [string]
   (reduce (fn [acc [char rep]]
             (if (str/index-of acc char)
-              (str/replace acc (str char) rep)
+              (str/replace acc (str char) (str/re-quote-replacement rep))
               acc))
           string (vec escape-codes)))
 
 (comment
-  (str-unescape "%%%0test123%0%%")
+  (str-unescape "***Qtest123*Q**")
   ;;
   )
 
-(def tag-escape "#clj/%")
+(def tag-escape "#clj/esc")
 
 (defn arg-escaped?
   [arg]
@@ -88,7 +87,7 @@
 
 (defmethod transform :clj/help
   [& _]
-  (println "\nUsage as an ARGQ command line argument: '#ns/tag[opts] element'"
+  (println "\nUsage as an ARGQ command line argument: \"'#ns/tag[opts] element'\""
            "\nTransform ELEMENT to program argument according to NS/TAG and OPTS."
            "\nOPTS can be a set of colon separated words. Universal OPTS:"
            "\n    :v\tPrint out useful information about the argument."
@@ -103,13 +102,13 @@
   ;;
   )
 
-(defmethod transform :clj/%
+(defmethod transform :clj/esc
   [_tag element & info]
   (if element
     {:argq/res (str-unescape element)}
-    {:argq/err [:clj/% :error :%-!element info]}))
+    {:argq/err [:clj/esc :error :!element info]}))
 
-(defmethod transform :clj/%i
+(defmethod transform :clj/prompt
   [_tag element & {:keys [pos publish!] :as _info}]
   (print (str "Enter value for arg at pos " (if-not pos "N/A" (inc pos))
               (when-not (str/blank? element) (str ", " element)) ": "))
@@ -120,15 +119,15 @@
     (println (str \newline :input))
     (println (str "  " uneline \newline))
     (println :use-this-as-a-safe-command-line-argument-replacement)
-    (println (str "  '#clj/% " eline \' \newline))
+    (println (str "  \"'#clj/esc " eline "'\"\n"))
     (cond-> {:argq/res uneline}
       publish!
-      (assoc :argq/pub (str "#clj/% " eline)))))
+      (assoc :argq/pub (str "#clj/esc " eline)))))
 
-(defmethod transform :clj/%%
+(defmethod transform :clj/**
   [_tag element & {:keys [pos] :as info}]
   (if-not element
-    {:argq/err [:clj/%% :error :%%-!element info]}
+    {:argq/err [:clj/** :error :**-!element info]}
 
     (let [uq (str-unescape element)]
       (pp/pprint #::{:pos pos :in element :out uq})
@@ -151,21 +150,24 @@
 
 (defn arg-sparse
   [arg]
-  (when (str/starts-with? arg "#")
-    (let [arg-1 (subs arg 1)
-          keys-str (map #(subs (str %) 1) (keys *tags*))]
-      (if-let [tag-str (some #(when (or (= arg-1 (str %))
-                                        (str/starts-with? arg-1 (str % \ ))
-                                        (str/starts-with? arg-1 (str % \:)))
-                                %)
-                             keys-str)]
-        (let [tag-w-opts (first (str/split arg-1 #" "))
-              tag-opts-set (->> (str/split tag-w-opts #":")
-                                rest
-                                (map keyword)
-                                set)
-              element (when (not= tag-w-opts arg-1) (subs arg-1 (count (str tag-w-opts \ ))))]
-          {:tag (keyword tag-str) :opts-set tag-opts-set :element element})))))
+  (let [arg (if-not (and (> (count arg) 1) (str/starts-with? arg "'") (str/ends-with? arg "'"))
+              arg
+              (subs arg 1 (dec (count arg))))]
+    (when (str/starts-with? arg "#")
+      (let [arg-1 (subs arg 1)
+            keys-str (map #(subs (str %) 1) (keys *tags*))]
+        (if-let [tag-str (some #(when (or (= arg-1 (str %))
+                                          (str/starts-with? arg-1 (str % \ ))
+                                          (str/starts-with? arg-1 (str % \:)))
+                                  %)
+                               keys-str)]
+          (let [tag-w-opts (first (str/split arg-1 #" "))
+                tag-opts-set (->> (str/split tag-w-opts #":")
+                                  rest
+                                  (map keyword)
+                                  set)
+                element (when (not= tag-w-opts arg-1) (subs arg-1 (count (str tag-w-opts \ ))))]
+            {:tag (keyword tag-str) :opts-set tag-opts-set :element element}))))))
 
 (defn tag-process
   [tag element {:keys [pos opts-set] :as info}]
@@ -181,15 +183,17 @@
     (assoc result :argq/tag tag)))
 
 (comment
-  (tag-process :clj/% "xyz%D" {:pos 1 :opts-set #{:vv}})
+  (tag-process :clj/esc "xyz*D" {:pos 1 :opts-set #{:vv}})
   ;;
   )
 
 (defn arg-parse
   [arg & {:keys [publish!] :as info}]
   (if-let [{:keys [tag opts-set element]} (arg-sparse arg)]
-    (let [info (update info :opts-set concat (map keyword opts-set))]
-
+    (let [arg (if-not (and (> (count arg) 1) (str/starts-with? arg "'") (str/ends-with? arg "'"))
+                arg
+                (subs arg 1 (dec (count arg))))
+          info (update info :opts-set concat (map keyword opts-set))]
       (cond-> (tag-process tag element info)
         publish!
         (update :argq/pub #(or % arg))))
@@ -202,18 +206,18 @@
           {:argq/res arg
            :argq/pub arg}
 
-          (arg-parse (str "#clj/% " arg-esc) info))))))
+          (arg-parse (str "#clj/esc " arg-esc) info))))))
 
 (comment
-  (arg-parse "#clj/%%:v {:aliases {:space {:main-opts [%0-e%0 %0(spit %1%s%1 (+ 1 2 3))%0]}}}" {:pos 5 :opts [1 2 3]})
-  (arg-parse "#clj/%%:v {:aliases {:space {:main-opts [%0-e%0 %0(spit %1%s%1 (+ 1 2 3))%0]}}}"
+  (arg-parse "#clj/esc:v {:aliases {:space {:main-opts [*Q-e*Q *Q(spit *1%s*1 (+ 1 2 3))*Q]}}}" {:pos 5 :opts [1 2 3]})
+  (arg-parse "#clj/**:v {:aliases {:space {:main-opts [*Q-e*Q *Q(spit *1%s*1 (+ 1 2 3))*Q]}}}"
              {:pos 5 :opts [1 2 3] :publish! true})
   (arg-parse "#$^34<>"
              {:pos 5 :opts [1 2 3] :publish! true})
   (arg-parse "xyz"
              {:pos 5 :opts [1 2 3] :publish! true})
-  (arg-parse "#clj/%% {:aliases {:space {:main-opts [%0-e%0 %0(spit %1%s%1 (+ 1 2 3))%0]}}}" {:pos 5})
-  (arg-parse "#clj/%% {:aliases {:space {:main-opts [%0-e%0 %0(spit %1%%s%1 (+ 1 2 3))%0]}}}" {:pos 5})  
+  (arg-parse "#clj/** {:aliases {:space {:main-opts [*Q-e*Q *Q(spit *1*s*1 (+ 1 2 3))*Q]}}}" {:pos 5})
+  (arg-parse "#clj/** {:aliases {:space {:main-opts [*Q-e*Q *Q(spit *1**s*1 (+ 1 2 3))*Q]}}}" {:pos 5})
   (arg-parse "!£^&*()-_+=,.?@~#{}")
   ;;
   )
@@ -238,7 +242,9 @@
       (println :cross-platform-args)
       (print " ")
       (doseq [arg args-pub]
-        (print (str \' arg "' ")))
+        (if-not (str/starts-with? arg "#clj/esc")
+          (print (str \' arg "' "))
+          (print (str "\"'" arg "'\" "))))
       (println \newline)
       (flush))
     (if-not on-error!
@@ -250,10 +256,10 @@
         (on-error! error args-pre)))))
 
 (comment
-  (args-parse ["123" "#clj/%% %1123%1" "#clj/% %B%%456%B"])
+  (args-parse ["123" "#clj/** *1123*1" "#clj/esc *B**456*B"])
   (args-parse ["#clj/publish" "123" "456"])
-  (args-parse ["#clj/publish" "123$" "345" "#clj/%% %1123%1" "#clj/% %B%%456%B"])
-  (args-parse ["#clj/publish" "123$" "345" "#clj/%i xyz" "#clj/%% %1123%1" "#clj/% %B%%456%B"])
+  (args-parse ["#clj/publish" "123$" "345" "#clj/** *1123*1" "#clj/esc *B**456*B"])
+  (args-parse ["#clj/publish" "123$" "345" "#clj/prompt xyz" "#clj/** *1123*1" "#clj/esc *B**456*B"])
 
 
   ;;

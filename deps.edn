@@ -5,5 +5,6 @@
                   :exec-fn cognitect.test-runner.api/test}
 
            :main-test {:extra-paths ["test"]
+                       :extra-deps {babashka/process {:mvn/version "0.3.11"}}
                        :main-opts ["-m" "ikappaki.argq.main"]}
            }}
