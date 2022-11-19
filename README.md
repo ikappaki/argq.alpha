@@ -2,7 +2,7 @@
 
 ## About
 
-([α-state](#α-state), everything is subject to change)
+([α-status](#α-status), everything is subject to change)
 
 `argq` is a small Clojure library with no dependencies to support uniform argument quoting across platforms, and much more.
 
@@ -14,7 +14,7 @@ A good example of such characters is the double quote `"` and its escaped sequen
 
 ## `argq` lib
 
-`argq` is an extensible, dependencies free, non-intrusive library which solves the argument syntax diversity problem by limiting the set of allowable syntax characters in an argument to those that have no special meaning in any platform while escaping everything else.
+`argq` is an extensible, dependencies free, non-intrusive library which solves the argument syntax diversity problem by limiting the set of allowable syntax characters in an argument to those that have no special meaning in any platform, while escaping everything else.
 
 ## Features
 
@@ -27,22 +27,35 @@ A good example of such characters is the double quote `"` and its escaped sequen
 
 ## Concerns
 
-- Syntax looks alien and might scare people off while writers should not impose such syntax on people.
+- Syntax looks alien and might scare people off, while writers should not impose such syntax on people.
 
-The library as a minimum can be used to solve a very particular issue which has dare consequences: publishing cross platform command line instructions to the world. If the instructions do not work as advertised on some platforms of interest, then is most likely to scare newcomers off and confuse the rest, limiting Clojure reach to specific platforms only.
+_Thoughts_
 
-The syntax should not look alien (i.e. incomprehensible) to Clojurians. It uses the familiar tagged literal syntax of `#ns/symbol` to indicate the element which follows should be treated in a special way. Most of the argument maintains its original form except for a dozen of symbols that are escaped using mnemonic characters, thus the hope is that a user should be able to reason about the argument value without much difficulty.
+The library as a minimum can be used to solve a very particular issue which has dare consequences: publishing cross platform command line instructions to the world.
 
-Furthermore the library is opt-in and its syntax at the very least is not to be imposed on others. It comes with tooling to let authors publish their CLI invocation to the web without the need to know anything quoting rules. Users can just copy paste the that command from the web on their shell and it should just work across any platform/shell.
+If the instructions do not work as advertised on some platforms of interest, as it is currently the likely case for MS-Windows, then this is most probable to scare newcomers off and confuse the rest of the people, limiting Clojure reach to specific platforms only. The library addresses this issue.
+
+The syntax should not look alien (i.e. incomprehensible) to Clojurians. It uses the familiar tagged literal syntax of `#ns/symbol` to indicate the element which follows should be treated in a special way. Most of the argument value maintains its original form except for a dozen of symbols that are escaped using mnemonic characters, thus the hope is that a user should be able to reason about the argument value without much difficulty.
+
+Furthermore, the library's use is optional and its syntax at the very least is not to be imposed on others who don't use it. It comes with tooling to let authors publish their CLI invocation to the web without the need to know anything about the quoting rules. Users can just copy paste the that command from the web on their shell and it should just work across any platform/shell.
 
 The library offers much more than cross-platform argument compatibility for those that want to opt-in (see [Case studies](#Case-studies) for an example of how to write an extension to invoke sub commands in arguments).
 
 ## Setup
 
-Include dependency in `deps.edn`
+Manually, to include lib dependency in `deps.edn`
 
 ```clojure
 ikappaki/argq.alpha {:git/url  "https://github.com/ikappaki/argq.alpha" :sha "..."}
+```
+
+or with [neil](https://github.com/babashka/neil), to add the library to `deps.edn`
+```shell
+neil add dep ikappaki/argq.alpha --latest-sha
+```
+or to upgrade to the latest sha
+```shell
+neil dep upgrade :lib ikappaki/argq.alpha
 ```
 
 Require the library
@@ -94,7 +107,7 @@ Please note that the argument must be wrapped in a pair of double and single quo
 
 As an example, a command line argument of `"'#clj/esc this is a *Qstring*Q'"` has a `ns/tag` of `clj/esc` and an `element` of `this is a *Qstring*Q`. 
 
-`argq` will dispatch the `element` to the `:clj/esc` handler, which will un-escape it and pass `this is a 'string'` to the program as the actual argument value.
+`argq` will dispatch the `element` to the `:clj/esc` handler, which will un-escape it and pass `this is a "string"` to the program as the actual argument value.
 
 Information with examples about each standard tag follows.
 
@@ -111,8 +124,8 @@ your-program "'#clj/help'"
 Unescape rest of the argument and pass value to program as such.
 
 ``` shell
-your-program "'#clj/esc *Q this argum*Dnt is *1 double quoted *1 *Q'"
-# arg1 => " this argum$nt is \" double quoted \" "
+your-program "'#clj/esc *Q this argum*Dnt has *1 double quotes *1 *Q'"
+# arg1 => " this argum$nt has \" double quotes \" "
 ```
 
 If you want to know the actual value that will be passed to the program, append the `:v` (for **V**erbose) option to the tag
@@ -154,6 +167,13 @@ your-program "'#clj/prompt please enter a value for this argument'"
 #           :use-this-as-a-safe-command-line-argument-replacement
 #             "'#clj/esc *Qtest 100*P*Q'"
 ```
+
+The user entered a hypothetical `"test 100%" value as the argument input when prompted, and can now replace the program's argument with the suggested quoted value
+```shell
+your-program "'#clj/esc *Qtest 100*P*Q'"
+```
+
+i.e. `your-program` is going to receive `"test 100%"` as the argument value.
 
 #### `clj/publish`
 
@@ -280,7 +300,7 @@ A potential solution using `argq`, is to create a new `shell` tag that will run 
 clojure -X:bench :json "'#argq/shell:s my_json_producing_cmd --blah'"
 ```
 
-This will also work across platform, not just with the Unix shell.
+This will also work across all platforms, not just with the Unix shell.
 
 A toy `shell` tag can be trivially written with [babashka.process](https://github.com/babashka/process) as
 
@@ -315,7 +335,7 @@ A toy `shell` tag can be trivially written with [babashka.process](https://githu
 
 (see [test/ikappaki/argq/main.clj](test/ikappaki/argq/main.clj)).
 
-## α-state
+## α-status
 
 Some of the naming choices are likely to change to facilitate greater acceptance
 
